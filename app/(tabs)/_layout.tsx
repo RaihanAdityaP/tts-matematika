@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Text } from 'react-native';
 
 export default function TabLayout() {
   return (
@@ -27,7 +28,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => (
-            <span style={{ fontSize: 24 }}>🏠</span>
+            <Text style={{ fontSize: 24 }}>🏠</Text>
           ),
         }}
       />
@@ -36,7 +37,7 @@ export default function TabLayout() {
         options={{
           title: 'Main',
           tabBarIcon: ({ color }) => (
-            <span style={{ fontSize: 24 }}>🎮</span>
+            <Text style={{ fontSize: 24 }}>🎮</Text>
           ),
         }}
       />
@@ -45,7 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Achievement',
           tabBarIcon: ({ color }) => (
-            <span style={{ fontSize: 24 }}>🏆</span>
+            <Text style={{ fontSize: 24 }}>🏆</Text>
           ),
         }}
       />
