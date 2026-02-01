@@ -1,33 +1,52 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#e0e0e0',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: '#2196F3',
+        tabBarInactiveTintColor: '#999',
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <span style={{ fontSize: 24 }}>🏠</span>
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="play"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Main',
+          tabBarIcon: ({ color }) => (
+            <span style={{ fontSize: 24 }}>🎮</span>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="achievement"
+        options={{
+          title: 'Achievement',
+          tabBarIcon: ({ color }) => (
+            <span style={{ fontSize: 24 }}>🏆</span>
+          ),
         }}
       />
     </Tabs>

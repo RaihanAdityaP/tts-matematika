@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { LEVEL_CONFIGS } from '../constants/Levels';
 import { getAchievementProgress } from '../services/achievementService';
