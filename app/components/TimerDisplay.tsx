@@ -1,26 +1,11 @@
-import { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface TimerDisplayProps {
-  timeElapsed: number;
-  timeLimit?: number;
-  onTimeUp?: () => void;
+  timeElapsed: number; // in seconds
 }
 
-export default function TimerDisplay({
-  timeElapsed,
-  timeLimit,
-  onTimeUp,
-}: TimerDisplayProps) {
-  const timeRemaining = timeLimit ? Math.max(0, timeLimit - timeElapsed) : 0;
-  const isLowTime = timeLimit && timeRemaining < 60;
-
-  useEffect(() => {
-    if (timeLimit && timeRemaining === 0 && onTimeUp) {
-      onTimeUp();
-    }
-  }, [timeRemaining, timeLimit, onTimeUp]);
-
+export default function TimerDisplay({ timeElapsed }: TimerDisplayProps) {
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -30,9 +15,7 @@ export default function TimerDisplay({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Waktu</Text>
-      <Text style={[styles.time, isLowTime ? styles.lowTime : undefined]}>
-        {timeLimit ? formatTime(timeRemaining) : formatTime(timeElapsed)}
-      </Text>
+      <Text style={styles.value}>{formatTime(timeElapsed)}</Text>
     </View>
   );
 }
@@ -40,7 +23,7 @@ export default function TimerDisplay({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 12,
     minWidth: 100,
@@ -50,13 +33,10 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
-  time: {
-    fontSize: 24,
+  value: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
-    fontFamily: 'monospace',
-  },
-  lowTime: {
-    color: '#f44336',
+    color: '#3B82F6',
+    fontVariant: ['tabular-nums'],
   },
 });

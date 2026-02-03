@@ -1,10 +1,10 @@
+import React from 'react';
 import {
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { HINT_COSTS } from '../constants/Levels';
 
@@ -12,10 +12,8 @@ interface HintModalProps {
   visible: boolean;
   currentScore: number;
   onClose: () => void;
-  onSelectHint: (hintType: 'reveal_cell' | 'highlight_wrong' | 'show_operation') => void;
+  onSelectHint: (hintType: 'reveal_cell' | 'highlight_wrong' | 'show_cage') => void;
 }
-
-const { width } = Dimensions.get('window');
 
 export default function HintModal({
   visible,
@@ -25,29 +23,24 @@ export default function HintModal({
 }: HintModalProps) {
   const hints = [
     {
-      type: 'show_operation' as const,
-      title: 'Tampilkan Operasi',
-      description: 'Lihat operator matematika untuk soal yang dipilih',
-      icon: '🔍',
-      cost: HINT_COSTS.show_operation,
+      type: 'show_cage' as const,
+      title: 'Tampilkan Cage',
+      description: 'Highlight cage dari sel yang dipilih',
+      cost: HINT_COSTS.show_cage,
     },
     {
       type: 'highlight_wrong' as const,
-      title: 'Tandai Yang Salah',
-      description: 'Sorot sel dengan jawaban yang salah',
-      icon: '⚠️',
+      title: 'Highlight Salah',
+      description: 'Tandai semua sel yang salah',
       cost: HINT_COSTS.highlight_wrong,
     },
     {
       type: 'reveal_cell' as const,
-      title: 'Buka Satu Sel',
-      description: 'Tampilkan jawaban untuk satu sel',
-      icon: '💡',
+      title: 'Buka Sel',
+      description: 'Tampilkan jawaban untuk sel yang dipilih',
       cost: HINT_COSTS.reveal_cell,
     },
   ];
-
-  const canAfford = (cost: number) => currentScore >= cost;
 
   return (
     <Modal
@@ -58,50 +51,42 @@ export default function HintModal({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Pilih Bantuan</Text>
-            <Text style={styles.scoreText}>
-              Skor Anda: {currentScore}
-            </Text>
-          </View>
+          <Text style={styles.title}>Pilih Bantuan</Text>
+          <Text style={styles.scoreText}>Skor kamu: {currentScore}</Text>
 
-          <View style={styles.hintsContainer}>
+          <View style={styles.hintsList}>
             {hints.map((hint) => (
               <TouchableOpacity
                 key={hint.type}
                 style={[
                   styles.hintButton,
-                  !canAfford(hint.cost) && styles.hintButtonDisabled,
+                  currentScore < hint.cost && styles.disabledButton,
                 ]}
-                onPress={() => {
-                  if (canAfford(hint.cost)) {
-                    onSelectHint(hint.type);
-                  }
-                }}
-                disabled={!canAfford(hint.cost)}
+                onPress={() => onSelectHint(hint.type)}
+                disabled={currentScore < hint.cost}
+                activeOpacity={0.7}
               >
-                <Text style={styles.hintIcon}>{hint.icon}</Text>
-                <View style={styles.hintInfo}>
+                <View style={styles.hintContent}>
                   <Text style={styles.hintTitle}>{hint.title}</Text>
-                  <Text style={styles.hintDescription}>
-                    {hint.description}
-                  </Text>
-                  <View style={styles.costBadge}>
-                    <Text style={styles.costText}>
-                      {hint.cost} poin
-                    </Text>
-                  </View>
+                  <Text style={styles.hintDescription}>{hint.description}</Text>
                 </View>
-                {!canAfford(hint.cost) && (
-                  <View style={styles.lockedBadge}>
-                    <Text style={styles.lockedText}>🔒</Text>
-                  </View>
-                )}
+                <Text
+                  style={[
+                    styles.costText,
+                    currentScore < hint.cost && styles.disabledCost,
+                  ]}
+                >
+                  -{hint.cost}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
             <Text style={styles.closeButtonText}>Tutup</Text>
           </TouchableOpacity>
         </View>
@@ -118,96 +103,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 20,
-    width: width - 40,
+    padding: 24,
+    width: '85%',
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  header: {
-    marginBottom: 20,
-    alignItems: 'center',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 8,
+    textAlign: 'center',
   },
   scoreText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 20,
+    textAlign: 'center',
   },
-  hintsContainer: {
+  hintsList: {
     gap: 12,
     marginBottom: 20,
   },
   hintButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    justifyContent: 'space-between',
     padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#e0e0e0',
+    borderColor: '#E2E8F0',
   },
-  hintButtonDisabled: {
+  disabledButton: {
     opacity: 0.5,
-    backgroundColor: '#f9f9f9',
   },
-  hintIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  hintInfo: {
+  hintContent: {
     flex: 1,
   },
   hintTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0F172A',
     marginBottom: 4,
   },
   hintDescription: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 6,
-  },
-  costBadge: {
-    backgroundColor: '#2196F3',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
+    fontSize: 12,
+    color: '#64748B',
   },
   costText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F59E0B',
+    marginLeft: 12,
   },
-  lockedBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  lockedText: {
-    fontSize: 20,
+  disabledCost: {
+    color: '#CBD5E1',
   },
   closeButton: {
-    backgroundColor: '#666',
+    backgroundColor: '#64748B',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
   },
   closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

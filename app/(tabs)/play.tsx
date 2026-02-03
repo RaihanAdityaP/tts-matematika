@@ -10,19 +10,22 @@ import {
   View,
 } from 'react-native';
 import HintModal from '../components/HintModal';
-import MathGrid from '../components/MathGrid';
+import MathCrossGrid from '../components/MathCrossGrid';
 import NumberPad from '../components/NumberPad';
 import ProgressBar from '../components/ProgressBar';
-import QuestionCard from '../components/QuestionCard';
 import TimerDisplay from '../components/TimerDisplay';
 import { LEVEL_CONFIGS } from '../constants/Levels';
 import { checkAchievementsAfterGame } from '../services/achievementService';
-import { checkAnswer, generateCrosswordPuzzle } from '../services/mathGenerator';
+import {
+  generateMathCrossPuzzle,
+  validateCage,
+  validateCell,
+} from '../services/mathCrossGenerator';
 import {
   resetStreak,
   updateStatsAfterGame,
 } from '../services/storageService';
-import { DifficultyLevel, GameState, GridCell, MathQuestion } from '../types';
+import { DifficultyLevel, GameState, GridCell } from '../types';
 
 export default function PlayScreen() {
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('easy');
@@ -35,32 +38,36 @@ export default function PlayScreen() {
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Initialize new game
-  const initializeGame = useCallback((level: DifficultyLevel) => {
-    const { grid, questions } = generateCrosswordPuzzle(level);
-    
-    setGameState({
-      grid,
-      questions,
-      currentDifficulty: level,
-      score: LEVEL_CONFIGS[level].baseScore,
-      hintsUsed: 0,
-      timeElapsed: 0,
-      isComplete: false,
-    });
+  const initializeGame = useCallback(
+    (level: DifficultyLevel) => {
+      const { grid, cages } = generateMathCrossPuzzle(level);
 
-    setSelectedCell(null);
-    setSelectedNumber(null);
-    setTimeElapsed(0);
-    setHintsUsed(0);
-    setDifficulty(level);
+      setGameState({
+        grid,
+        cages,
+        gridSize: LEVEL_CONFIGS[level].gridSize,
+        currentDifficulty: level,
+        score: LEVEL_CONFIGS[level].baseScore,
+        hintsUsed: 0,
+        timeElapsed: 0,
+        isComplete: false,
+      });
 
-    // Start timer
-    if (timerInterval) clearInterval(timerInterval);
-    const interval = setInterval(() => {
-      setTimeElapsed((prev) => prev + 1);
-    }, 1000);
-    setTimerInterval(interval);
-  }, [timerInterval]);
+      setSelectedCell(null);
+      setSelectedNumber(null);
+      setTimeElapsed(0);
+      setHintsUsed(0);
+      setDifficulty(level);
+
+      // Start timer
+      if (timerInterval) clearInterval(timerInterval);
+      const interval = setInterval(() => {
+        setTimeElapsed((prev) => prev + 1);
+      }, 1000);
+      setTimerInterval(interval);
+    },
+    [timerInterval]
+  );
 
   useEffect(() => {
     // Initialize game on mount
@@ -74,15 +81,10 @@ export default function PlayScreen() {
 
   // Handle cell press
   const handleCellPress = (row: number, col: number) => {
-    if (!gameState) return;
-
-    const cell = gameState.grid[row][col];
-    if (cell.questionIds.length === 0) return;
-
     setSelectedCell({ row, col });
   };
 
-  // Handle number selection and placement
+  // Handle number selection
   const handleNumberSelect = (number: number) => {
     if (!selectedCell || !gameState) {
       setSelectedNumber(number);
@@ -102,31 +104,60 @@ export default function PlayScreen() {
     setGameState({ ...gameState, grid: newGrid });
     setSelectedNumber(null);
 
-    // Check if placement is correct
-    setTimeout(() => validateCell(selectedCell.row, selectedCell.col, number), 300);
+    // Validate cell
+    setTimeout(() => {
+      validateCellPlacement(selectedCell.row, selectedCell.col, newGrid);
+    }, 100);
   };
 
-  // Validate cell answer
-  const validateCell = (row: number, col: number, value: number) => {
+  // Handle delete
+  const handleDelete = () => {
+    if (!selectedCell || !gameState) return;
+
+    const newGrid = gameState.grid.map((row: GridCell[], i: number) =>
+      row.map((cell: GridCell, j: number) => {
+        if (i === selectedCell.row && j === selectedCell.col) {
+          return { ...cell, value: null, isCorrect: null };
+        }
+        return cell;
+      })
+    );
+
+    setGameState({ ...gameState, grid: newGrid });
+  };
+
+  // Handle clear all
+  const handleClear = () => {
     if (!gameState) return;
 
-    const cell = gameState.grid[row][col];
-    let isCorrect = false;
+    Alert.alert('Bersihkan Grid', 'Hapus semua jawaban?', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Ya',
+        onPress: () => {
+          const newGrid = gameState.grid.map((row: GridCell[]) =>
+            row.map((cell: GridCell) => ({
+              ...cell,
+              value: null,
+              isCorrect: null,
+            }))
+          );
+          setGameState({ ...gameState, grid: newGrid });
+        },
+      },
+    ]);
+  };
 
-    // Check against all questions for this cell
-    for (const questionId of cell.questionIds) {
-      const question = gameState.questions.find((q: MathQuestion) => q.id === questionId);
-      if (question && checkAnswer(value, question)) {
-        isCorrect = true;
-        break;
-      }
-    }
+  // Validate cell placement
+  const validateCellPlacement = (row: number, col: number, grid: GridCell[][]) => {
+    if (!gameState) return;
 
-    // Update cell correctness
-    const newGrid = gameState.grid.map((r: GridCell[], i: number) =>
+    const isValid = validateCell(grid, gameState.cages, row, col);
+
+    const newGrid = grid.map((r: GridCell[], i: number) =>
       r.map((c: GridCell, j: number) => {
         if (i === row && j === col) {
-          return { ...c, isCorrect };
+          return { ...c, isCorrect: isValid };
         }
         return c;
       })
@@ -134,67 +165,93 @@ export default function PlayScreen() {
 
     setGameState({ ...gameState, grid: newGrid });
 
-    // Check if game is complete
+    // Check game completion
     checkGameCompletion(newGrid);
   };
 
-  // Check if all cells are correctly filled
+  // Check if game is complete
   const checkGameCompletion = (grid: GridCell[][]) => {
     if (!gameState) return;
 
-    const allCellsCorrect = grid.every((row: GridCell[]) =>
-      row.every((cell: GridCell) => {
-        if (cell.questionIds.length === 0) return true;
-        return cell.isCorrect === true;
-      })
+    // Check if all cells are filled
+    const allFilled = grid.every((row: GridCell[]) =>
+      row.every((cell: GridCell) => cell.value !== null)
     );
 
-    if (allCellsCorrect) {
+    if (!allFilled) return;
+
+    // Check if all cells are correct
+    const allCorrect = grid.every((row: GridCell[]) =>
+      row.every((cell: GridCell) => cell.isCorrect === true)
+    );
+
+    // Check if all cages are valid
+    const allCagesValid = gameState.cages.every((cage) =>
+      validateCage(grid, cage)
+    );
+
+    if (allCorrect && allCagesValid) {
       if (timerInterval) clearInterval(timerInterval);
 
-      Alert.alert(
-        '🎉 Selamat!',
-        `Kamu berhasil menyelesaikan puzzle!\n\nWaktu: ${timeElapsed}s\nSkor: ${gameState.score}`,
-        [
-          {
-            text: 'Main Lagi',
-            onPress: () => initializeGame(difficulty),
-          },
-        ]
-      );
+      setTimeout(() => {
+        Alert.alert(
+          'Selamat!',
+          `Kamu berhasil menyelesaikan puzzle!\n\nWaktu: ${formatTime(
+            timeElapsed
+          )}\nSkor: ${gameState.score}`,
+          [
+            {
+              text: 'Main Lagi',
+              onPress: () => initializeGame(difficulty),
+            },
+          ]
+        );
 
-      // Update stats and check achievements
-      updateStatsAfterGame(difficulty, gameState.score, timeElapsed, hintsUsed).then(
-        (stats: any) => {
-          checkAchievementsAfterGame(stats);
-        }
-      );
+        // Update stats and check achievements
+        updateStatsAfterGame(difficulty, gameState.score, timeElapsed, hintsUsed).then(
+          (stats: any) => {
+            checkAchievementsAfterGame(stats);
+          }
+        );
+      }, 300);
     }
+  };
+
+  // Format time
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
   };
 
   // Handle hint selection
   const handleHintSelect = (
-    hintType: 'reveal_cell' | 'highlight_wrong' | 'show_operation'
+    hintType: 'reveal_cell' | 'highlight_wrong' | 'show_cage'
   ) => {
-    if (!gameState || !selectedCell) {
-      Alert.alert('Pilih Sel', 'Pilih sel terlebih dahulu sebelum menggunakan hint');
+    if (!gameState) {
       setHintModalVisible(false);
       return;
     }
 
-    const hintCost = hintType === 'reveal_cell' ? 50 : hintType === 'highlight_wrong' ? 30 : 20;
+    const hintCosts = {
+      reveal_cell: 20,
+      highlight_wrong: 15,
+      show_cage: 10,
+    };
 
-    if (gameState.score < hintCost) {
+    const cost = hintCosts[hintType];
+
+    if (gameState.score < cost) {
       Alert.alert('Skor Tidak Cukup', 'Skor kamu tidak cukup untuk hint ini');
       return;
     }
 
     // Deduct score
-    const newScore = gameState.score - hintCost;
+    const newScore = gameState.score - cost;
     setGameState({ ...gameState, score: newScore });
     setHintsUsed(hintsUsed + 1);
 
-    // Apply hint based on type
+    // Apply hint
     switch (hintType) {
       case 'reveal_cell':
         revealCell();
@@ -202,8 +259,8 @@ export default function PlayScreen() {
       case 'highlight_wrong':
         highlightWrongCells();
         break;
-      case 'show_operation':
-        showOperation();
+      case 'show_cage':
+        showCage();
         break;
     }
 
@@ -211,49 +268,63 @@ export default function PlayScreen() {
   };
 
   const revealCell = () => {
-    if (!gameState || !selectedCell) return;
+    if (!gameState || !selectedCell) {
+      Alert.alert('Pilih Sel', 'Pilih sel terlebih dahulu');
+      return;
+    }
 
     const cell = gameState.grid[selectedCell.row][selectedCell.col];
-    const question = gameState.questions.find((q: MathQuestion) =>
-      cell.questionIds.includes(q.id)
+
+    const newGrid = gameState.grid.map((row: GridCell[], i: number) =>
+      row.map((c: GridCell, j: number) => {
+        if (i === selectedCell.row && j === selectedCell.col) {
+          return { ...c, value: cell.solution, isCorrect: true };
+        }
+        return c;
+      })
     );
 
-    if (question) {
-      const newGrid = gameState.grid.map((row: GridCell[], i: number) =>
-        row.map((c: GridCell, j: number) => {
-          if (i === selectedCell.row && j === selectedCell.col) {
-            return { ...c, value: question.answer, isCorrect: true };
-          }
-          return c;
-        })
-      );
-
-      setGameState({ ...gameState, grid: newGrid });
-    }
+    setGameState({ ...gameState, grid: newGrid });
   };
 
   const highlightWrongCells = () => {
     if (!gameState) return;
 
-    Alert.alert(
-      'Bantuan',
-      'Sel dengan jawaban salah ditandai dengan border merah',
-      [{ text: 'OK' }]
+    const newGrid = gameState.grid.map((row: GridCell[]) =>
+      row.map((cell: GridCell) => {
+        if (cell.value !== null && cell.value !== cell.solution) {
+          return { ...cell, isCorrect: false };
+        }
+        return cell;
+      })
     );
+
+    setGameState({ ...gameState, grid: newGrid });
+    Alert.alert('Bantuan', 'Sel dengan jawaban salah ditandai merah', [{ text: 'OK' }]);
   };
 
-  const showOperation = () => {
-    if (!gameState || !selectedCell) return;
+  const showCage = () => {
+    if (!gameState || !selectedCell) {
+      Alert.alert('Pilih Sel', 'Pilih sel terlebih dahulu');
+      return;
+    }
 
     const cell = gameState.grid[selectedCell.row][selectedCell.col];
-    const question = gameState.questions.find((q: MathQuestion) =>
-      cell.questionIds.includes(q.id)
-    );
+    const cage = gameState.cages.find((c) => c.id === cell.cageId);
 
-    if (question) {
-      Alert.alert('Operasi', `Soal ini menggunakan: ${question.operators.join(', ')}`, [
-        { text: 'OK' },
-      ]);
+    if (cage) {
+      const operatorName = {
+        '+': 'Penjumlahan',
+        '-': 'Pengurangan',
+        '*': 'Perkalian',
+        '/': 'Pembagian',
+      }[cage.operator];
+
+      Alert.alert(
+        'Info Cage',
+        `Target: ${cage.target}\nOperasi: ${operatorName}\nJumlah sel: ${cage.cells.length}`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -265,19 +336,15 @@ export default function PlayScreen() {
     );
   }
 
-  const activeQuestions = selectedCell
-    ? gameState.questions.filter((q: MathQuestion) =>
-        gameState.grid[selectedCell.row][selectedCell.col].questionIds.includes(q.id)
-      )
-    : [];
-
-  const completedCells = gameState.grid.flat().filter((c: GridCell) => c.isCorrect === true).length;
-  const totalActiveCells = gameState.grid.flat().filter((c: GridCell) => c.questionIds.length > 0).length;
+  const completedCells = gameState.grid
+    .flat()
+    .filter((c: GridCell) => c.value !== null).length;
+  const totalCells = gameState.gridSize * gameState.gridSize;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
@@ -285,35 +352,75 @@ export default function PlayScreen() {
             <Text style={styles.scoreLabel}>Skor</Text>
             <Text style={styles.scoreValue}>{gameState.score}</Text>
           </View>
-          
+
           <TimerDisplay timeElapsed={timeElapsed} />
-          
+
           <TouchableOpacity
             style={styles.hintButton}
             onPress={() => setHintModalVisible(true)}
           >
-            <Text style={styles.hintButtonText}>💡 Hint</Text>
+            <Text style={styles.hintButtonText}>HINT</Text>
           </TouchableOpacity>
         </View>
 
-        <ProgressBar completed={completedCells} total={totalActiveCells} />
+        <ProgressBar completed={completedCells} total={totalCells} />
       </View>
 
-      {/* Questions */}
-      <QuestionCard questions={gameState.questions} activeQuestions={activeQuestions} />
+      {/* Main Content */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Difficulty Selector */}
+        <View style={styles.difficultySection}>
+          <Text style={styles.sectionTitle}>Tingkat Kesulitan</Text>
+          <View style={styles.difficultyButtons}>
+            {(['easy', 'medium', 'hard'] as DifficultyLevel[]).map((level) => (
+              <TouchableOpacity
+                key={level}
+                style={[
+                  styles.difficultyButton,
+                  difficulty === level && styles.activeDifficulty,
+                ]}
+                onPress={() => {
+                  Alert.alert('Ganti Kesulitan', 'Mulai game baru?', [
+                    { text: 'Batal', style: 'cancel' },
+                    { text: 'Ya', onPress: () => initializeGame(level) },
+                  ]);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.difficultyText,
+                    difficulty === level && styles.activeDifficultyText,
+                  ]}
+                >
+                  {level === 'easy' ? 'Mudah' : level === 'medium' ? 'Sedang' : 'Sulit'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-      {/* Grid */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <MathGrid
-          grid={gameState.grid}
-          onCellPress={handleCellPress}
-          selectedCell={selectedCell}
-          gridSize={LEVEL_CONFIGS[difficulty].gridSize}
-        />
+        {/* Grid */}
+        <View style={styles.gridSection}>
+          <MathCrossGrid
+            grid={gameState.grid}
+            cages={gameState.cages}
+            onCellPress={handleCellPress}
+            selectedCell={selectedCell}
+            gridSize={gameState.gridSize}
+          />
+        </View>
+
+        {/* Number Pad */}
+        <View style={styles.numberPadSection}>
+          <NumberPad
+            onNumberSelect={handleNumberSelect}
+            onDelete={handleDelete}
+            onClear={handleClear}
+            selectedNumber={selectedNumber}
+            maxNumber={gameState.gridSize}
+          />
+        </View>
       </ScrollView>
-
-      {/* Number Pad */}
-      <NumberPad onNumberSelect={handleNumberSelect} selectedNumber={selectedNumber} />
 
       {/* Hint Modal */}
       <HintModal
@@ -323,7 +430,7 @@ export default function PlayScreen() {
         onSelectHint={handleHintSelect}
       />
 
-      {/* New Game Button */}
+      {/* Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.newGameButton}
@@ -340,7 +447,7 @@ export default function PlayScreen() {
             ]);
           }}
         >
-          <Text style={styles.newGameButtonText}>🔄 Game Baru</Text>
+          <Text style={styles.newGameButtonText}>Game Baru</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -350,7 +457,7 @@ export default function PlayScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
@@ -358,10 +465,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingTop: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#E2E8F0',
+    paddingTop: 8,
   },
   headerRow: {
     flexDirection: 'row',
@@ -372,7 +479,7 @@ const styles = StyleSheet.create({
   },
   scoreCard: {
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 12,
     minWidth: 100,
@@ -385,10 +492,10 @@ const styles = StyleSheet.create({
   scoreValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#10B981',
   },
   hintButton: {
-    backgroundColor: '#FFC107',
+    backgroundColor: '#F59E0B',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -396,19 +503,70 @@ const styles = StyleSheet.create({
   hintButtonText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#FFF',
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
+    padding: 16,
+  },
+  difficultySection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  difficultyButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  difficultyButton: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  activeDifficulty: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  difficultyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  activeDifficultyText: {
+    color: '#FFFFFF',
+  },
+  gridSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  numberPadSection: {
+    marginBottom: 16,
   },
   footer: {
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#E2E8F0',
   },
   newGameButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#3B82F6',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -416,6 +574,6 @@ const styles = StyleSheet.create({
   newGameButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#FFF',
   },
 });

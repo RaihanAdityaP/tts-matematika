@@ -1,56 +1,63 @@
-import { DifficultyLevel } from '../types';
+import { DifficultyLevel, OperatorType } from '../types';
 
-export interface LevelConfig {
+interface LevelConfig {
   name: string;
   gridSize: number;
+  baseScore: number;
+  targetTime: number; // in seconds
+  cageCount: number;
+  maxCageSize: number;
+  operators: OperatorType[];
   numberRange: {
     min: number;
     max: number;
   };
-  operators: string[];
-  timeBonus: number; // Bonus points per second remaining
-  baseScore: number;
-  allowDecimals: boolean;
 }
 
 export const LEVEL_CONFIGS: Record<DifficultyLevel, LevelConfig> = {
   easy: {
     name: 'Mudah',
-    gridSize: 5,
-    numberRange: { min: 1, max: 10 },
-    operators: ['+', '-'],
-    timeBonus: 2,
+    gridSize: 4,
     baseScore: 100,
-    allowDecimals: false,
+    targetTime: 300, // 5 minutes
+    cageCount: 6,
+    maxCageSize: 3,
+    operators: ['+', '-'],
+    numberRange: {
+      min: 1,
+      max: 4,
+    },
   },
   medium: {
     name: 'Sedang',
-    gridSize: 6,
-    numberRange: { min: 1, max: 50 },
-    operators: ['+', '-', '*'],
-    timeBonus: 5,
+    gridSize: 5,
     baseScore: 200,
-    allowDecimals: false,
+    targetTime: 480, // 8 minutes
+    cageCount: 10,
+    maxCageSize: 4,
+    operators: ['+', '-', '*'],
+    numberRange: {
+      min: 1,
+      max: 5,
+    },
   },
   hard: {
     name: 'Sulit',
-    gridSize: 7,
-    numberRange: { min: 1, max: 100 },
+    gridSize: 6,
+    baseScore: 300,
+    targetTime: 600, // 10 minutes
+    cageCount: 15,
+    maxCageSize: 5,
     operators: ['+', '-', '*', '/'],
-    timeBonus: 10,
-    baseScore: 500,
-    allowDecimals: true,
+    numberRange: {
+      min: 1,
+      max: 6,
+    },
   },
 };
 
 export const HINT_COSTS = {
-  reveal_cell: 50,
-  highlight_wrong: 30,
-  show_operation: 20,
-};
-
-export const TIME_LIMITS = {
-  easy: 300, // 5 minutes
-  medium: 600, // 10 minutes
-  hard: 900, // 15 minutes
+  reveal_cell: 20,
+  highlight_wrong: 15,
+  show_cage: 10,
 };

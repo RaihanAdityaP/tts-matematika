@@ -1,32 +1,28 @@
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
-
 export type OperatorType = '+' | '-' | '*' | '/';
 
-export interface MathQuestion {
+// Cage is a group of cells that must satisfy a mathematical constraint
+export interface Cage {
   id: string;
-  question: string;
-  answer: number;
-  operators: OperatorType[];
-  numbers: number[];
-  difficulty: DifficultyLevel;
-  position: {
-    row: number;
-    col: number;
-  };
-  direction: 'horizontal' | 'vertical';
-  length: number;
+  cells: { row: number; col: number }[];
+  target: number;
+  operator: OperatorType;
 }
 
+// Grid cell with solution and user input
 export interface GridCell {
-  value: number | null;
+  row: number;
+  col: number;
+  value: number | null; // User's input
+  solution: number; // Correct answer
+  cageId: string; // Which cage this cell belongs to
   isCorrect: boolean | null;
-  questionIds: string[]; // Multiple questions can share a cell
-  isShared: boolean; // True if cell is intersection of H and V
 }
 
 export interface GameState {
   grid: GridCell[][];
-  questions: MathQuestion[];
+  cages: Cage[];
+  gridSize: number;
   currentDifficulty: DifficultyLevel;
   score: number;
   hintsUsed: number;
@@ -53,12 +49,12 @@ export interface GameStats {
   easyCompleted: number;
   mediumCompleted: number;
   hardCompleted: number;
-  perfectGames: number; // Games without hints
+  perfectGames: number;
   achievementsUnlocked: string[];
 }
 
 export interface HintType {
-  type: 'reveal_cell' | 'highlight_wrong' | 'show_operation';
+  type: 'reveal_cell' | 'highlight_wrong' | 'show_cage';
   cost: number;
   description: string;
 }

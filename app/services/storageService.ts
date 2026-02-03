@@ -1,51 +1,40 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ACHIEVEMENTS } from '../constants/Achievements';
-import { Achievement, GameStats } from '../types';
+import { Achievement, DifficultyLevel, GameStats } from '../types';
 
-const STORAGE_KEYS = {
-  STATS: '@tts_math_stats',
-  ACHIEVEMENTS: '@tts_math_achievements',
-  SETTINGS: '@tts_math_settings',
-};
-
-const DEFAULT_STATS: GameStats = {
-  gamesPlayed: 0,
-  gamesCompleted: 0,
-  totalScore: 0,
-  fastestTime: 0,
-  currentStreak: 0,
-  longestStreak: 0,
-  easyCompleted: 0,
-  mediumCompleted: 0,
-  hardCompleted: 0,
-  perfectGames: 0,
-  achievementsUnlocked: [],
-};
-
-const DEFAULT_SETTINGS = {
-  soundEnabled: true,
-  vibrationEnabled: true,
-  darkMode: false,
-};
+const STATS_KEY = '@math_cross_stats';
+const ACHIEVEMENTS_KEY = '@math_cross_achievements';
 
 // Get game statistics
-export async function getGameStats(): Promise<GameStats> {
+export async function getStats(): Promise<GameStats> {
   try {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.STATS);
+    const data = await AsyncStorage.getItem(STATS_KEY);
     if (data) {
       return JSON.parse(data);
     }
-    return DEFAULT_STATS;
   } catch (error) {
     console.error('Error loading stats:', error);
-    return DEFAULT_STATS;
   }
+
+  // Return default stats
+  return {
+    gamesPlayed: 0,
+    gamesCompleted: 0,
+    totalScore: 0,
+    fastestTime: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    easyCompleted: 0,
+    mediumCompleted: 0,
+    hardCompleted: 0,
+    perfectGames: 0,
+    achievementsUnlocked: [],
+  };
 }
 
 // Save game statistics
-export async function saveGameStats(stats: GameStats): Promise<void> {
+export async function saveStats(stats: GameStats): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
+    await AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats));
   } catch (error) {
     console.error('Error saving stats:', error);
   }
@@ -53,17 +42,17 @@ export async function saveGameStats(stats: GameStats): Promise<void> {
 
 // Update stats after completing a game
 export async function updateStatsAfterGame(
-  difficulty: 'easy' | 'medium' | 'hard',
+  difficulty: DifficultyLevel,
   score: number,
   timeElapsed: number,
   hintsUsed: number
 ): Promise<GameStats> {
-  const stats = await getGameStats();
+  const stats = await getStats();
 
-  stats.gamesPlayed += 1;
-  stats.gamesCompleted += 1;
+  stats.gamesPlayed++;
+  stats.gamesCompleted++;
   stats.totalScore += score;
-  stats.currentStreak += 1;
+  stats.currentStreak++;
 
   if (stats.currentStreak > stats.longestStreak) {
     stats.longestStreak = stats.currentStreak;
@@ -73,105 +62,57 @@ export async function updateStatsAfterGame(
     stats.fastestTime = timeElapsed;
   }
 
-  if (hintsUsed === 0) {
-    stats.perfectGames += 1;
-  }
-
+  // Update difficulty-specific stats
   switch (difficulty) {
     case 'easy':
-      stats.easyCompleted += 1;
+      stats.easyCompleted++;
       break;
     case 'medium':
-      stats.mediumCompleted += 1;
+      stats.mediumCompleted++;
       break;
     case 'hard':
-      stats.hardCompleted += 1;
+      stats.hardCompleted++;
       break;
   }
 
-  await saveGameStats(stats);
+  // Check for perfect game (no hints)
+  if (hintsUsed === 0) {
+    stats.perfectGames++;
+  }
+
+  await saveStats(stats);
   return stats;
 }
 
-// Reset streak (call when game is not completed)
+// Reset current streak
 export async function resetStreak(): Promise<void> {
-  const stats = await getGameStats();
+  const stats = await getStats();
   stats.currentStreak = 0;
-  await saveGameStats(stats);
+  await saveStats(stats);
 }
 
 // Get achievements
 export async function getAchievements(): Promise<Achievement[]> {
   try {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS);
+    const data = await AsyncStorage.getItem(ACHIEVEMENTS_KEY);
     if (data) {
       return JSON.parse(data);
     }
-    return ACHIEVEMENTS;
   } catch (error) {
     console.error('Error loading achievements:', error);
-    return ACHIEVEMENTS;
-  }
-}
-
-// Check and unlock achievements
-export async function checkAndUnlockAchievements(
-  stats: GameStats
-): Promise<Achievement[]> {
-  const achievements = await getAchievements();
-  const newlyUnlocked: Achievement[] = [];
-
-  achievements.forEach((achievement) => {
-    if (!achievement.unlocked && achievement.condition(stats)) {
-      achievement.unlocked = true;
-      stats.achievementsUnlocked.push(achievement.id);
-      newlyUnlocked.push(achievement);
-    }
-  });
-
-  if (newlyUnlocked.length > 0) {
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.ACHIEVEMENTS,
-      JSON.stringify(achievements)
-    );
-    await saveGameStats(stats);
   }
 
-  return newlyUnlocked;
+  return [];
 }
 
-// Get settings
-export async function getSettings() {
+// Save achievements
+export async function saveAchievements(achievements: Achievement[]): Promise<void> {
   try {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-    if (data) {
-      return JSON.parse(data);
-    }
-    return DEFAULT_SETTINGS;
+    await AsyncStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(achievements));
   } catch (error) {
-    console.error('Error loading settings:', error);
-    return DEFAULT_SETTINGS;
+    console.error('Error saving achievements:', error);
   }
 }
 
-// Save settings
-export async function saveSettings(settings: typeof DEFAULT_SETTINGS): Promise<void> {
-  try {
-    await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-  } catch (error) {
-    console.error('Error saving settings:', error);
-  }
-}
-
-// Clear all data (for testing or reset)
-export async function clearAllData(): Promise<void> {
-  try {
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.STATS,
-      STORAGE_KEYS.ACHIEVEMENTS,
-      STORAGE_KEYS.SETTINGS,
-    ]);
-  } catch (error) {
-    console.error('Error clearing data:', error);
-  }
-}
+// Alias for backward compatibility
+export const getGameStats = getStats;
